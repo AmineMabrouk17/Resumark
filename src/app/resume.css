@@ -1,0 +1,740 @@
+/* ==========================================================================
+   Resumark — resume document
+   Typography and spacing of the printed resume. Every value is driven by CSS
+   custom properties so the One Page engine can compact the document without
+   ever scaling it (PRD §9, §13, §14, §19).
+
+   Screen preview and print share these rules, which is what makes the export
+   a true WYSIWYG A4 page: the printable area of an A4 page with 12mm/15mm
+   margins is exactly `--page-content-width` × `--page-content-height`.
+
+   The templates (PRD §10) are *token sets* on top of one shared
+   document. Only colours, type scale, rhythm and the section-heading treatment
+   change — the HTML is always identical, which is what keeps the Markdown and
+   therefore the ATS output identical across templates.
+   ========================================================================== */
+
+.resume-document {
+  /* --- density multipliers, written inline by the One Page engine --------- */
+  --rm-d-section: 1;
+  --rm-d-list: 1;
+  --rm-d-paragraph: 1;
+  --rm-d-heading: 1;
+  --rm-d-margin: 1;
+  --rm-d-font: 1;
+  --rm-d-line: 1;
+
+  /* --- base spacing ------------------------------------------------------
+     Every gap is a multiple of `--rm-u` so the rhythm is a system rather than
+     a pile of hand-picked numbers, and each token is a density lever, which is
+     what lets One Page compact the document one step at a time (§14). */
+  --rm-u: 4px;
+  --rm-gap-list: calc(0.5 * var(--rm-u));
+  --rm-gap-para: calc(1.5 * var(--rm-u));
+  --rm-gap-heading: calc(1.75 * var(--rm-u));
+  --rm-gap-masthead: calc(2.25 * var(--rm-u));
+  --rm-margin-entry: calc(2.75 * var(--rm-u));
+  /* Must stay >= one line box: if the largest interval in the body is smaller
+     than a line of text, the document reads as a wall with faint divisions
+     instead of as sections. */
+  --rm-gap-section: calc(4 * var(--rm-u));
+  /* Small fixed intervals that were previously hardcoded in shared rules. */
+  --rm-gap-tight: calc(0.75 * var(--rm-u));
+  --rm-gap-micro: calc(0.375 * var(--rm-u));
+  --rm-gap-entry-meta: calc(0.25 * var(--rm-u));
+  --rm-first-section-extra: calc(0.5 * var(--rm-u));
+  --rm-block-pad: calc(1.5 * var(--rm-u));
+  --rm-indent-list: 1.1em;
+  /* `em` so the indent and the type shrink together under compaction. */
+  --rm-indent-block: 1.1em;
+  --rm-track-para: 0;
+
+  /* --- base typography (PRD §9) ------------------------------------------
+     Order is the document's reading order, largest to smallest. Every value
+     sits inside the band PRD §9 fixes for its role. */
+  --rm-size-name: 27px;
+  --rm-size-h2: 13.5px;
+  --rm-size-title: 12px;
+  --rm-size-h3: 11.5px;
+  --rm-size-body: 11px;
+  --rm-size-meta: 9.5px;
+  --rm-line-body: 1.46;
+  --rm-line-head: 1.2;
+
+  /* --- default look (Classic) -------------------------------------------- */
+  --rm-font: var(--font-sans);
+  /*
+   * Typeface for the display roles (name, section titles). Split from
+   * `--rm-font` so a template can set its headings in a different face from its
+   * body copy without a second code path — Editorial is serif-display /
+   * sans-text, which is how the printed journals it borrows from are set.
+   */
+  --rm-font-display: var(--rm-font);
+  --rm-text: #16181d;
+  --rm-muted: #5a6474;
+  --rm-accent: #0b1220;
+  --rm-rule: #b9c0cc;
+  --rm-rule-soft: #dfe3ea;
+  --rm-link: #16407a;
+  --rm-h2-transform: uppercase;
+  /*
+   * HARD CEILING — do not raise above 0.095em without checking the exported
+   * PDF.
+   *
+   * Chromium emits each glyph of a wide-tracked run as its own positioned text
+   * run, and by 0.115em the extractor reads the gaps between the letters as word
+   * breaks: the PDF's text layer spells "E D U C AT I O N" instead of
+   * "EDUCATION". That is not cosmetic. The text layer is what an ATS parser
+   * reads, what a search for a section title matches, what copy/paste yields and
+   * what a screen reader announces, so wide tracking quietly breaks all four,
+   * and the PRD's ATS requirement along with them. Measured against the real
+   * export at 12.5px: clean at 0.095em, split at 0.115em. Modern shipped at
+   * 0.115em for most of this project's life and produced split headings in
+   * every PDF until the Templates check started reading extracted text.
+   */
+  --rm-h2-tracking: 0.095em;
+  --rm-h2-weight: 700;
+  --rm-h2-border: 0.75px solid var(--rm-rule);
+  --rm-h2-border-left: 0;
+  --rm-h2-padding: 0 0 2.5px;
+  --rm-masthead-rule: 0.75px solid var(--rm-rule-soft);
+  --rm-name-weight: 700;
+  --rm-name-tracking: -0.021em;
+  --rm-name-align: left;
+  --rm-title-weight: 600;
+  --rm-title-tracking: -0.005em;
+  --rm-h3-weight: 700;
+  --rm-h3-color: var(--rm-text);
+  --rm-strong-color: inherit;
+  --rm-marker: disc;
+  --rm-marker-color: var(--rm-muted);
+  --rm-link-underline: 0.5px;
+  /* Code and quote surfaces are tokens so a template that promises "no rules"
+     can actually keep its promise (Minimal). */
+  --rm-code-bg: #f1f5f9;
+  --rm-code-fg: #0f172a;
+  --rm-code-border: #e2e8f0;
+  --rm-quote-bar: 2px solid var(--rm-rule);
+  --rm-hr: 0.75px solid var(--rm-rule-soft);
+  --rm-image-max-height: 18mm;
+
+  display: flow-root; /* keeps child margins inside the measured box */
+  width: 100%;
+  color: var(--rm-text);
+  font-family: var(--rm-font);
+  font-size: calc(var(--rm-size-body) * var(--rm-d-font));
+  line-height: calc(var(--rm-line-body) * var(--rm-d-line));
+  letter-spacing: var(--rm-track-para);
+  font-variant-numeric: tabular-nums;
+  font-kerning: normal;
+  text-align: left;
+  hyphens: none;
+  overflow-wrap: break-word;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.resume-document::selection {
+  background: color-mix(in srgb, var(--rm-accent) 18%, transparent);
+}
+
+/* ------------------------------ masthead -------------------------------- */
+
+.resume-masthead {
+  margin-bottom: calc(var(--rm-gap-masthead) * var(--rm-d-section));
+  text-align: var(--rm-name-align);
+  /* A masthead split across a page break is the most obviously broken thing a
+     resume can do. */
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+/* Optional rule under the header block — the single most effective way to
+   make a resume look designed without adding decoration. */
+.resume-masthead::after {
+  content: "";
+  display: block;
+  height: 0;
+  border-bottom: var(--rm-masthead-rule);
+  margin-top: calc(var(--rm-masthead-pad) * var(--rm-d-heading));
+}
+
+.resume-masthead h1 {
+  margin: 0;
+  font-family: var(--rm-font-display);
+  font-size: calc(var(--rm-size-name) * var(--rm-d-font));
+  font-weight: var(--rm-name-weight);
+  line-height: 1.08;
+  letter-spacing: var(--rm-name-tracking);
+  text-wrap: balance;
+  color: var(--rm-accent);
+}
+
+/* Line directly under the name: professional title. Sits deliberately *below*
+   the section headings in the scale — "Full Stack Developer" is a subtitle,
+   not a structural signal. */
+.resume-masthead h1 + p {
+  margin: calc(var(--rm-gap-tight) * var(--rm-d-paragraph)) 0 0;
+  font-family: var(--rm-font-display);
+  font-size: calc(var(--rm-size-title) * var(--rm-d-font));
+  font-weight: var(--rm-title-weight);
+  line-height: 1.3;
+  letter-spacing: var(--rm-title-tracking);
+  color: var(--rm-title-color, var(--rm-muted));
+}
+
+/* Everything after that (contact line, links) is metadata. */
+.resume-masthead p {
+  margin: calc(var(--rm-gap-micro) * var(--rm-d-paragraph)) 0 0;
+  font-size: calc(var(--rm-size-meta) * var(--rm-d-font));
+  line-height: 1.55;
+  color: var(--rm-muted);
+}
+
+.resume-masthead h1 + p + p {
+  margin-top: calc(var(--rm-gap-tight) * var(--rm-d-paragraph));
+}
+
+/* ------------------------------ sections -------------------------------- */
+
+.resume-section {
+  margin-top: calc(var(--rm-gap-section) * var(--rm-d-section));
+  /*
+   * Deliberately *not* `break-inside: avoid` (PRD §19 offers it as an example).
+   * A section is the largest block in the document; forbidding it to break
+   * pushes whole sections to the next page and leaves large holes in the
+   * middle of a multi-page resume. The same intent — a heading is never
+   * separated from its content — is achieved below with `break-after: avoid` on
+   * every heading plus `break-inside: avoid` on each entry, which is what
+   * actually keeps a job title with its bullets.
+   */
+  break-inside: auto;
+}
+
+.resume-masthead + .resume-section {
+  margin-top: calc(
+    (var(--rm-gap-section) + var(--rm-first-section-extra)) * var(--rm-d-section)
+  );
+}
+
+.resume-document h2 {
+  margin: 0 0 calc(var(--rm-gap-heading) * var(--rm-d-heading));
+  padding: var(--rm-h2-padding);
+  border-bottom: var(--rm-h2-border);
+  border-left: var(--rm-h2-border-left);
+  font-family: var(--rm-font-display);
+  font-size: calc(var(--rm-size-h2) * var(--rm-d-font));
+  font-weight: var(--rm-h2-weight);
+  line-height: var(--rm-line-head);
+  letter-spacing: var(--rm-h2-tracking);
+  text-transform: var(--rm-h2-transform);
+  color: var(--rm-h2-color, var(--rm-accent));
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+/* A heading is never separated from the content that belongs to it. */
+.resume-document h1,
+.resume-document h3,
+.resume-document h4,
+.resume-document h5,
+.resume-document h6 {
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+/* -------------------------------- entries -------------------------------- */
+
+.resume-entry {
+  margin-top: calc(var(--rm-margin-entry) * var(--rm-d-margin));
+  /* A job title and its bullets stay on the same page. */
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.resume-entry:first-of-type {
+  margin-top: calc(var(--rm-margin-entry) * var(--rm-d-margin) * 0.62);
+}
+
+.resume-document h3 {
+  margin: 0;
+  font-size: calc(var(--rm-size-h3) * var(--rm-d-font));
+  font-weight: var(--rm-h3-weight);
+  line-height: 1.28;
+  letter-spacing: -0.008em;
+  text-wrap: pretty;
+  color: var(--rm-h3-color, var(--rm-text));
+}
+
+.resume-document h4,
+.resume-document h5,
+.resume-document h6 {
+  margin: 0;
+  font-size: calc(var(--rm-size-h3) * var(--rm-d-font));
+  font-weight: 600;
+  line-height: 1.28;
+}
+
+/* Date / location line under an entry title. */
+.resume-entry h3 + p,
+.resume-entry h4 + p {
+  margin: calc(var(--rm-gap-entry-meta) * var(--rm-d-paragraph)) 0 0;
+  font-size: calc(var(--rm-size-meta) * var(--rm-d-font));
+  color: var(--rm-muted);
+}
+
+/* ------------------------------- body ----------------------------------- */
+
+.resume-document p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+/* Space is created by the *following* block only, so the rhythm is
+   deterministic once child margins collapse. */
+.resume-document p + p {
+  margin-top: calc(var(--rm-gap-para) * var(--rm-d-paragraph));
+}
+
+.resume-document ul,
+.resume-document ol {
+  margin: 0;
+  padding-left: calc(var(--rm-indent-list) * var(--rm-d-font));
+}
+
+.resume-document ul {
+  list-style: var(--rm-marker) outside;
+}
+
+/*
+ * Depth is information. A nested list that reuses the top-level marker is
+ * indistinguishable from a flat one, which is the most common way a bulleted
+ * resume loses its structure.
+ */
+.resume-document ul ul {
+  --rm-marker: circle;
+}
+
+.resume-document ul ul ul {
+  --rm-marker: square;
+}
+
+.resume-document ol {
+  list-style: decimal outside;
+}
+
+.resume-document li {
+  margin: 0;
+  padding-left: 0.1em;
+}
+
+.resume-document li::marker {
+  color: var(--rm-marker-color);
+  font-size: 0.92em;
+}
+
+.resume-document li + li {
+  margin-top: calc(var(--rm-gap-list) * var(--rm-d-list));
+}
+
+.resume-document li > p {
+  margin: 0;
+}
+
+.resume-document li > ul,
+.resume-document li > ol {
+  margin-top: calc(var(--rm-gap-list) * var(--rm-d-list));
+}
+
+.resume-document strong {
+  font-weight: 700;
+  color: var(--rm-strong-color, inherit);
+}
+
+/*
+ * A real `text-decoration`, not a `border-bottom`. A 0.5px border is 2.16–2.40:1
+ * against the surrounding text (below the 3:1 that 1.4.11 requires) and, under
+ * the preview's CSS `zoom`, drops below one device pixel and is not painted at
+ * all — which would leave colour as the only link cue. `currentColor` is the
+ * link's own contrast ratio, so the underline always passes.
+ */
+.resume-document a {
+  color: var(--rm-link);
+  text-decoration: underline;
+  text-decoration-thickness: var(--rm-link-underline);
+  text-underline-offset: 0.15em;
+  text-decoration-color: currentColor;
+}
+
+.resume-document a:hover {
+  text-decoration-thickness: 1px;
+}
+
+/* URLs and inline code are the constructs that genuinely need to break
+   anywhere. Not `hyphens: auto`: soft hyphens would end up in the PDF text
+   layer, which is what an ATS parser reads. */
+.resume-document a,
+.resume-document code,
+.resume-document pre {
+  overflow-wrap: anywhere;
+}
+
+.resume-document code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  padding: 0.1em 0.2em;
+  border-radius: 2px;
+  background: var(--rm-code-bg);
+  color: var(--rm-code-fg);
+}
+
+.resume-document pre {
+  margin: 0;
+  padding: calc(var(--rm-block-pad) * var(--rm-d-paragraph))
+    calc(var(--rm-block-pad) * var(--rm-d-paragraph) * 1.33);
+  border-radius: 4px;
+  background: var(--rm-code-bg);
+  border: 1px solid var(--rm-code-border);
+  font-family: var(--font-mono);
+  font-size: calc(var(--rm-size-meta) * var(--rm-d-font));
+  line-height: 1.4;
+  white-space: pre-wrap;
+  break-inside: avoid;
+}
+
+.resume-document blockquote {
+  margin: 0;
+  padding-left: var(--rm-indent-block);
+  border-left: var(--rm-quote-bar);
+  color: var(--rm-muted);
+  font-style: italic;
+}
+
+.resume-document hr {
+  margin: calc(var(--rm-gap-para) * var(--rm-d-paragraph)) 0;
+  border: 0;
+  border-top: var(--rm-hr);
+}
+
+/* --- tables ---------------------------------------------------------------
+   A table wider than the 180mm column used to overflow the sheet, and Chromium
+   clips to the page area, so right-hand cells were silently lost from the PDF.
+   `table-layout: fixed` + `overflow-wrap: anywhere` on the cells means the
+   table can never exceed the column, and `break-inside: avoid` keeps a short
+   table whole. An `overflow-x: auto` wrapper would not help: Chromium prints a
+   scroll container at offset 0, which is the same clip. */
+.resume-document .rm-table-wrap {
+  max-width: 100%;
+  break-inside: avoid;
+}
+
+.resume-document table {
+  width: 100%;
+  table-layout: fixed;
+  margin: 0;
+  border-collapse: collapse;
+  font-size: calc(var(--rm-size-meta) * var(--rm-d-font));
+}
+
+.resume-document thead {
+  display: table-header-group;
+}
+
+.resume-document th,
+.resume-document td {
+  padding: calc(var(--rm-gap-list) * var(--rm-d-list)) calc(0.75 * var(--rm-u))
+    calc(var(--rm-gap-list) * var(--rm-d-list)) 0;
+  border-bottom: var(--rm-hr);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+/* Only the last column needs to clear the right margin. */
+.resume-document th:last-child,
+.resume-document td:last-child {
+  padding-right: 0;
+}
+
+.resume-document th {
+  font-weight: 700;
+}
+
+/* A resume photo row, not a hero banner: a full-width image would be a third
+   of the page, and it would shove every block below it down on load. */
+.resume-document img {
+  display: block;
+  max-width: 100%;
+  max-height: var(--rm-image-max-height);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  object-position: left center;
+  margin: calc(var(--rm-gap-list) * var(--rm-d-list)) 0;
+}
+
+.resume-loose {
+  margin-top: calc(var(--rm-gap-section) * var(--rm-d-section));
+}
+
+.resume-loose:first-child {
+  margin-top: 0;
+}
+
+/* ============================ TEMPLATES =================================
+   Five distinct looks, one document. Each block only overrides design
+   tokens, so density compaction, print rules and ATS output stay shared.
+   ======================================================================= */
+
+/* --- Classic (default): single column, black & gray, no decoration -------
+   Hairline-ruled section headings and one thin rule under the masthead:
+   the "traditional executive" look that still reads as designed.
+   Name 27 / section 13.5 / subtitle 12 / entry 11.5 / body 11 / meta 9.5 —
+   every adjacent pair is at least 0.5px apart and the two structural levels
+   (section, entry) are 2px apart, so hierarchy is carried by size as well as
+   by case, tracking and the rule. */
+.resume--classic {
+  --rm-accent: #0b1220;
+  --rm-text: #16181d;
+  --rm-muted: #5a6474;
+  --rm-link: #16407a;
+  --rm-rule: #aeb6c4;
+  --rm-rule-soft: #dde1e8;
+  --rm-size-name: 27px;
+  --rm-size-h2: 13.5px;
+  --rm-size-title: 12px;
+  --rm-size-h3: 11.5px;
+  --rm-size-body: 11px;
+  --rm-size-meta: 9.5px;
+  --rm-line-body: 1.46;
+  --rm-gap-section: 17px;
+  --rm-gap-list: 3px;
+  --rm-gap-para: 6px;
+  --rm-gap-heading: 7px;
+  --rm-margin-entry: 11px;
+  --rm-gap-masthead: 9px;
+  --rm-masthead-pad: 8px;
+  --rm-masthead-rule: 0.75px solid var(--rm-rule-soft);
+  --rm-h2-border: 0.75px solid var(--rm-rule);
+  --rm-h2-padding: 0 0 2.5px;
+  --rm-h2-color: var(--rm-accent);
+  --rm-name-weight: 700;
+  --rm-name-tracking: -0.021em;
+  --rm-marker-color: var(--rm-muted);
+  --rm-name-align: left;
+}
+
+/* --- Modern: stronger hierarchy, one subtle accent colour ---------------
+   The name and the section titles carry the accent; the subtitle does not,
+   so the accent marks structure rather than decoration. Section headings get
+   a solid accent bar instead of a rule. Larger type, more air. */
+.resume--modern {
+  --rm-accent: #1d4ed8;
+  --rm-text: #1b2130;
+  --rm-muted: #5b6678;
+  --rm-link: #1d4ed8;
+  --rm-rule: #cdd6e4;
+  --rm-rule-soft: #e3e9f2;
+  --rm-size-name: 28px;
+  --rm-size-h2: 14px;
+  --rm-size-title: 12.5px;
+  --rm-size-h3: 12px;
+  --rm-size-body: 11px;
+  --rm-size-meta: 9.5px;
+  --rm-line-body: 1.5;
+  --rm-gap-section: 18px;
+  --rm-gap-list: 3px;
+  --rm-gap-para: 6.5px;
+  --rm-gap-heading: 8px;
+  --rm-margin-entry: 12px;
+  --rm-gap-masthead: 10px;
+  --rm-masthead-pad: 9px;
+  --rm-masthead-rule: 2px solid var(--rm-accent);
+  --rm-h2-transform: uppercase;
+  /* Was 0.115em until the PDF text layer was checked; see the shared rules. */
+  --rm-h2-tracking: 0.095em;
+  --rm-h2-weight: 700;
+  --rm-h2-border: 0;
+  --rm-h2-border-left: 2.5px solid var(--rm-accent);
+  --rm-h2-padding: 0 0 0 7px;
+  --rm-h2-color: var(--rm-accent);
+  --rm-name-weight: 700;
+  --rm-name-tracking: -0.028em;
+  --rm-title-weight: 600;
+  --rm-h3-weight: 700;
+  --rm-name-align: left;
+}
+
+/* --- Minimal: no rules, tightest rhythm, maximum density -----------------
+   The only template with sentence-case section titles. That single decision,
+   more than any size or gap value, is what separates it from Classic at a
+   glance — inheriting `uppercase` here made the quietest template the one with
+   the loudest headings. The type ladder is one pixel per level, the density
+   comes from the rhythm rather than from unreadably small type, and every rule
+   that survived from the shared rules is switched off below. */
+.resume--minimal {
+  --rm-accent: #0f1115;
+  --rm-text: #14161a;
+  --rm-muted: #5b5f66;
+  --rm-link: #14161a;
+  --rm-rule: #c9cbd0;
+  --rm-rule-soft: #e3e4e7;
+  --rm-size-name: 24px;
+  /*
+   * 13/12/11/10.5 rather than the denser 12/11.5/11/10 this template used to
+   * ship. Two of those were at the edge of PRD §9 and one was over it: the
+   * professional title has a 12–14px floor, and 11.5 was under it. The body at
+   * 10px also pushed the measure to ~123 characters, past the 60–120 range a
+   * single-column A4 document can hold readably — the 180mm column is fixed, so
+   * the only way to shorten the measure is a larger body size. 10.5px is still
+   * the densest body of the three templates and still sits mid-band in §9.
+   */
+  --rm-size-h2: 13px;
+  --rm-size-title: 12px;
+  --rm-size-h3: 11px;
+  --rm-size-body: 10.5px;
+  --rm-size-meta: 9px;
+  --rm-line-body: 1.38;
+  --rm-gap-section: 14px;
+  --rm-gap-list: 1.5px;
+  --rm-gap-para: 4px;
+  --rm-gap-heading: 4px;
+  --rm-margin-entry: 7px;
+  --rm-gap-masthead: 6px;
+  --rm-masthead-pad: 5px;
+  --rm-masthead-rule: 0;
+  --rm-h2-transform: none;
+  --rm-h2-border: 0;
+  --rm-h2-padding: 0;
+  --rm-h2-weight: 700;
+  --rm-h2-tracking: 0;
+  --rm-h2-color: var(--rm-accent);
+  --rm-name-weight: 600;
+  --rm-name-tracking: -0.012em;
+  --rm-title-weight: 400;
+  --rm-h3-weight: 600;
+  --rm-h3-color: var(--rm-text);
+  --rm-link-underline: 0.5px;
+  --rm-code-border: transparent;
+  --rm-quote-bar: 0;
+  --rm-hr: 0;
+  --rm-marker: "–  ";
+  --rm-name-align: left;
+}
+
+/* A blockquote and a horizontal rule have to earn their ink in this template. */
+.resume--minimal blockquote {
+  border-left: 0;
+  font-style: normal;
+}
+
+.resume--minimal th,
+.resume--minimal td {
+  border-bottom: 0;
+}
+
+.resume--minimal th {
+  border-bottom: 0.75px solid var(--rm-rule);
+}
+
+/* --- Editorial: a printed page — serif display over sans text -------------
+   The only template that changes typeface, and it changes it for the display
+   roles only. A full-serif body was the first attempt and it failed the
+   measure check at 137 characters: Charter is a narrow face, so 11px of it
+   fits far more words per line than 11px of the UI sans, and a 137-character
+   line is genuinely hard to track back to the start of. Holding the body in
+   the sans keeps the measure where every other template has it, and the serif
+   is spent on the name, the professional title and the section titles — which
+   is how the journals this borrows from are actually set. The 1.25px rule
+   under each section title and the 1.75px masthead rule are the magazine
+   signal. Warm greys, so it reads as paper.
+
+   Tracking is 0.09em, not the 0.16em first drafted for the kicker effect — see
+   the note on `--rm-h2-tracking` in the shared rules.
+   Name 27 / section 12.5 / title 12 / entry 11.5 / body 11 / meta 9.5. */
+.resume--editorial {
+  --rm-font-display: var(--font-serif);
+  --rm-accent: #17150f;
+  --rm-text: #1b1a17;
+  --rm-muted: #5c5850;
+  --rm-link: #1a4a7a;
+  --rm-rule: #a9a296;
+  --rm-rule-soft: #ddd8ce;
+  --rm-size-name: 27px;
+  --rm-size-h2: 12.5px;
+  --rm-size-title: 12px;
+  --rm-size-h3: 11.5px;
+  --rm-size-body: 11px;
+  --rm-size-meta: 9.5px;
+  --rm-line-body: 1.52;
+  --rm-gap-section: 16px;
+  --rm-gap-list: 3px;
+  --rm-gap-para: 6px;
+  --rm-gap-heading: 7px;
+  --rm-margin-entry: 11px;
+  --rm-gap-masthead: 9px;
+  --rm-masthead-pad: 8px;
+  --rm-masthead-rule: 1.75px solid var(--rm-rule);
+  --rm-h2-transform: uppercase;
+  --rm-h2-tracking: 0.09em;
+  --rm-h2-weight: 700;
+  --rm-h2-border: 1.25px solid var(--rm-accent);
+  --rm-h2-padding: 0 0 3px;
+  --rm-h2-color: var(--rm-accent);
+  --rm-name-weight: 700;
+  --rm-name-tracking: -0.014em;
+  --rm-name-align: left;
+}
+
+/* --- Executive: scale and air, nothing else --------------------------------
+   The largest name, the most prominent professional title (13.5px, against
+   12–12.5px elsewhere), the widest section gap in the set and the heaviest
+   masthead rule (2.5px), which is the whole of the decoration. No accent bar:
+   that device belongs to Modern, and reusing it would make the two
+   indistinguishable at a glance. The 0.2em section tracking first drafted here
+   had to be dropped to 0.085em — see the note on `--rm-h2-tracking` below.
+
+   The leading and the entry margins are deliberately *not* the loosest here.
+   The first pass used 1.55 leading and 13px entry margins, which put the
+   example resume 5px over one page in Normal mode — so the template opened on
+   a two-page preview, which reads as a broken app rather than as an airy
+   design. The airiness is spent on the type scale and the section gap, where a
+   reader actually perceives it, rather than on the leading, which only shows up
+   as an overflow warning.
+   Name 28 / section 13 / title 13.5 / entry 11.5 / body 11 / meta 9.5. */
+.resume--executive {
+  --rm-font: var(--font-sans);
+  --rm-accent: #101a2b;
+  --rm-text: #171a20;
+  --rm-muted: #5a616e;
+  --rm-link: #14448a;
+  --rm-rule: #c2c8d2;
+  --rm-rule-soft: #e3e7ee;
+  --rm-size-name: 28px;
+  --rm-size-h2: 13px;
+  --rm-size-title: 13.5px;
+  --rm-size-h3: 11.5px;
+  --rm-size-body: 11px;
+  --rm-size-meta: 9.5px;
+  --rm-line-body: 1.5;
+  --rm-gap-section: 19px;
+  --rm-gap-list: 3.5px;
+  --rm-gap-para: 6.5px;
+  --rm-gap-heading: 8px;
+  --rm-margin-entry: 11px;
+  --rm-gap-masthead: 10px;
+  --rm-masthead-pad: 9px;
+  --rm-masthead-rule: 2.5px solid var(--rm-accent);
+  --rm-h2-transform: uppercase;
+  --rm-h2-tracking: 0.085em;
+  --rm-h2-weight: 700;
+  --rm-h2-border: 0;
+  --rm-h2-border-left: 0;
+  --rm-h2-padding: 0 0 2px;
+  --rm-h2-color: var(--rm-accent);
+  --rm-name-weight: 700;
+  --rm-name-tracking: -0.024em;
+  --rm-title-weight: 600;
+  --rm-title-tracking: 0.01em;
+  --rm-name-align: left;
+}

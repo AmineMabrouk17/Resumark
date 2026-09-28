@@ -1,0 +1,950 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Resumark — application shell
+   Layout-critical rules (responsive panes, preview geometry, print reset)
+   live here as plain CSS so the print/screen contract stays explicit and
+   reviewable. Tailwind utilities are used for everything else.
+   ========================================================================== */
+
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  /*
+   * Charter leads the list because it is the best-looking transitional serif
+   * commonly installed on Linux; Georgia covers Windows and macOS, and the
+   * metric-compatible Liberation Serif keeps the measured measure and the
+   * One Page fit stable on headless boxes that have neither.
+   */
+  --font-serif:
+    Charter, "Bitstream Charter", "Iowan Old Style", Georgia,
+    "Liberation Serif", "Times New Roman", Times, "DejaVu Serif", serif;
+
+  --color-shell-50: #f8fafc;
+  --color-shell-100: #f1f5f9;
+  --color-shell-200: #e2e8f0;
+  --color-shell-300: #cbd5e1;
+  --color-shell-400: #94a3b8;
+  --color-shell-500: #64748b;
+  --color-shell-600: #475569;
+  --color-shell-700: #334155;
+  --color-shell-800: #1e293b;
+  --color-shell-900: #0f172a;
+}
+
+:root {
+  /* A4 geometry — single source of truth for screen *and* print. */
+  --page-width: 210mm;
+  --page-height: 297mm;
+  --page-pad-y: 12mm;
+  --page-pad-x: 15mm;
+  --page-content-height: calc(var(--page-height) - 2 * var(--page-pad-y));
+  --page-content-width: calc(var(--page-width) - 2 * var(--page-pad-x));
+  --page-rule: #94a3b8;
+  --scrollbar-thumb: #94a3b8;
+
+  /*
+   * Focus ring colour. It has to clear 3:1 against whatever surface the
+   * focused control sits on, and the shell is half dark chrome and half light
+   * panes, so the light surfaces below re-declare it.
+   */
+  --focus-ring: #0f172a;
+}
+
+* {
+  min-width: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #e6ebf3;
+  color: var(--color-shell-900);
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+
+/* Screen-only: Chromium ignores this when printing, so keeping it out of the
+   default cascade removes the one inherited screen-only property that would
+   otherwise make the on-screen text render lighter than the PDF. */
+@media screen {
+  body {
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Visible focus everywhere, keyboard only. */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Dark surfaces: the same ring would be invisible on them (1.0–1.2:1). */
+.app-header,
+.workspace__pane--editor,
+.dialog-backdrop {
+  --focus-ring: #f8fafc;
+}
+
+/* No control is disabled today, but the vocabulary has to exist before the
+   first one is — a disabled button that still looks live is a silent bug. */
+:disabled,
+[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+/* On a pointer-sized screen the app owns the viewport and panes scroll
+   internally. Below the mobile breakpoint the page itself is allowed to
+   scroll, so a large text size can never squeeze a pane to zero height. */
+@media screen and (min-width: 768px) {
+  .app-shell {
+    height: 100dvh;
+  }
+}
+
+/* ------------------------------ header ---------------------------------- */
+
+.app-header {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  padding: 0.5rem 0.875rem;
+  background: linear-gradient(180deg, #16203a 0%, #0f172a 100%);
+  color: var(--color-shell-50);
+  border-bottom: 1px solid var(--color-shell-800);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.18);
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-right: auto;
+}
+
+.app-header__wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+/* Brand accent dot — the one piece of decoration in the chrome. */
+.app-header__wordmark::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #38bdf8;
+  box-shadow: 0 0 0 3px rgb(56 189 248 / 0.16);
+}
+
+.app-header__tagline {
+  font-size: 0.6875rem;
+  color: var(--color-shell-400);
+  letter-spacing: 0.02em;
+}
+
+.app-header__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.header-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--color-shell-300);
+}
+
+.header-field__label {
+  white-space: nowrap;
+}
+
+.header-select {
+  appearance: none;
+  background-color: rgb(30 41 59 / 0.85);
+  background-image: linear-gradient(45deg, transparent 50%, var(--color-shell-400) 50%),
+    linear-gradient(135deg, var(--color-shell-400) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) calc(50% + 1px),
+    calc(100% - 9px) calc(50% + 1px);
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+  color: var(--color-shell-50);
+  border: 1px solid var(--color-shell-500);
+  border-radius: 0.375rem;
+  padding: 0.3125rem 1.75rem 0.3125rem 0.5625rem;
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.header-select:hover {
+  background-color: var(--color-shell-700);
+  border-color: var(--color-shell-500);
+}
+
+.header-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  min-height: 1.5rem;
+  padding: 0.3125rem 0.625rem 0.3125rem 0.5rem;
+  border: 1px solid var(--color-shell-500);
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-shell-100);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.header-toggle:hover {
+  border-color: var(--color-shell-500);
+}
+
+.header-toggle input {
+  width: 0.9375rem;
+  height: 0.9375rem;
+  accent-color: #38bdf8;
+  cursor: pointer;
+}
+
+.header-toggle:has(input:checked) {
+  border-color: #38bdf8;
+  background-color: rgb(56 189 248 / 0.12);
+}
+
+.header-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  padding: 0.375rem 0.8125rem;
+  border-radius: 0.375rem;
+  border: 1px solid transparent;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
+}
+
+.header-button--primary {
+  background-color: #f8fafc;
+  color: var(--color-shell-900);
+  box-shadow: 0 1px 2px rgb(2 6 23 / 0.35);
+}
+
+.header-button--primary:hover {
+  background-color: #e2e8f0;
+}
+
+.header-button--primary:active {
+  background-color: #cbd5e1;
+}
+
+.header-button--ghost {
+  background-color: transparent;
+  color: var(--color-shell-300);
+  border-color: var(--color-shell-700);
+}
+
+.header-button--ghost:hover {
+  color: var(--color-shell-50);
+  border-color: var(--color-shell-500);
+  background-color: rgb(148 163 184 / 0.08);
+}
+
+.save-status {
+  font-size: 0.6875rem;
+  color: var(--color-shell-400);
+  /* Wide enough for the longest state ("Storage unavailable"), so the Reset
+     and Export buttons never shift when the status changes. */
+  min-width: 8.5rem;
+  text-align: right;
+}
+
+.save-status[data-tone="error"] {
+  color: #fca5a5;
+}
+
+/* Autosave off (PRD §27a). Amber, not red: nothing has failed, but the session
+   is unprotected, and it has to read differently from both the healthy and the
+   errored state. */
+.save-status[data-tone="warn"] {
+  color: #fcd34d;
+}
+
+.header-alert {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0.375rem 0.625rem;
+  border-radius: 0.375rem;
+  background-color: rgb(252 165 165 / 0.14);
+  color: #fecaca;
+  font-size: 0.75rem;
+}
+
+/* The autosave warning. Not a live region — the SaveIndicator next to the
+   switch already announces the change, and a second announcement would talk
+   over it. */
+.header-alert--warn {
+  background-color: rgb(252 211 77 / 0.12);
+  color: #fde68a;
+}
+
+/* ----------------------------- workspace -------------------------------- */
+
+.workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace__tabs {
+  flex: 0 0 auto;
+  display: none;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+  padding: 0.375rem;
+  background: var(--color-shell-200);
+  border-bottom: 1px solid var(--color-shell-300);
+}
+
+.workspace__tab {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  padding: 0.4375rem 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-shell-600);
+  background: transparent;
+  cursor: pointer;
+}
+
+.workspace__tab[aria-selected="true"] {
+  background: #fff;
+  border-color: var(--color-shell-300);
+  color: var(--color-shell-900);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
+}
+
+.workspace__panes {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  /* The preview column is wide enough for the A4 sheet at 1:1 on a 1440px
+     screen; below that the sheet is scaled down by `--preview-zoom`. */
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.4fr);
+}
+
+.workspace__pane {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workspace__pane--editor {
+  border-right: 1px solid var(--color-shell-300);
+  background: #1e1e1e;
+}
+
+.pane-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4375rem 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pane-bar--editor {
+  background: #252526;
+  color: #8f8f8f;
+  border-bottom: 1px solid #333;
+}
+
+.pane-bar--preview {
+  background: var(--color-shell-200);
+  color: var(--color-shell-600);
+  border-bottom: 1px solid var(--color-shell-300);
+}
+
+/*
+ * The hint sits on the bar, so it has to clear 4.5:1 against *that bar* — the
+ * two panes have opposite lightness and a single colour cannot serve both.
+ */
+.pane-bar__hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.pane-bar--editor .pane-bar__hint {
+  color: #9ca3af;
+}
+
+.pane-bar--preview .pane-bar__hint {
+  color: var(--color-shell-600);
+}
+
+/* ------------------------------ editor ---------------------------------- */
+
+.editor-host {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.editor-skeleton {
+  height: 100%;
+  min-height: 12rem;
+  background: #1e1e1e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8f8f8f;
+  font-size: 0.8125rem;
+}
+
+/* ------------------------------ preview --------------------------------- */
+
+.preview-pane {
+  background: #e6ebf3;
+}
+
+.preview-stage {
+  flex: 1 1 auto;
+  /* Never let the sheet collapse to nothing, however much chrome is on screen. */
+  min-height: 12rem;
+  overflow: auto;
+  display: flex;
+  /*
+   * `safe center` rather than plain `center`: a centred flex item that is
+   * wider than its container overflows on *both* sides in every engine, and the
+   * left-hand overflow is unreachable. `safe` degrades to flex-start instead.
+   */
+  justify-content: safe center;
+  align-items: flex-start;
+  padding: 1.25rem;
+  overscroll-behavior: contain;
+  /* One flat neutral value: the sheet has to read at the same weight against
+     its surround at every scroll position, so no bloom behind the content. */
+  background: #e6ebf3;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.preview-sheet {
+  /* A4 sheet: exactly the printable area of an A4 page with 12mm/15mm margins. */
+  position: relative;
+  flex: 0 0 auto;
+  /* Centred while it fits, flush-left and scrollable once it does not. */
+  margin-inline: auto;
+  width: var(--page-width);
+  min-height: var(--page-height);
+  box-sizing: border-box;
+  padding: var(--page-pad-y) var(--page-pad-x);
+  background-color: #fff;
+  /* Screen-only pagination hint. Chromium fragments the real page wherever
+     `break-inside: avoid` forces it to, so this line is indicative, not
+     authoritative — the printed output is. */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent var(--page-content-height),
+    var(--page-rule) var(--page-content-height),
+    var(--page-rule) calc(var(--page-content-height) + 1px)
+  );
+  background-position: 0 var(--page-pad-y);
+  background-repeat: repeat-y;
+  background-clip: border-box;
+  border-radius: 2px;
+  /* Paper sits on a desk: one tight contact shadow, one soft lift. */
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.16),
+    0 16px 32px -12px rgb(15 23 42 / 0.28);
+  /* Zoom is how narrow viewports get the whole A4 page without sideways
+     scrolling. Reset to 1 for print, and it never affects layout metrics. */
+  zoom: var(--preview-zoom, 1);
+}
+
+.preview-footer {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--color-shell-300);
+  background: #fbfcfe;
+  font-size: 0.75rem;
+  color: var(--color-shell-600);
+}
+
+.page-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+
+/*
+ * The badge reports *fit*, not which mode produced it: a one-page resume is
+ * one page either way, so it gets the same colour in both. Saturation is
+ * reserved for the two states that mean something — it fits, or it could not
+ * be made to fit.
+ */
+.page-badge--one {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #14532d;
+}
+
+.page-badge--many {
+  background: transparent;
+  border-color: var(--color-shell-300);
+  color: var(--color-shell-600);
+}
+
+.page-badge--over {
+  background: #fef3c7;
+  border-color: #d97706;
+  color: #78350f;
+}
+
+.page-warning {
+  flex: 1 1 22rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.375rem;
+  background: #fffbeb;
+  border: 1px solid #d97706;
+  color: #78350f;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.page-warning strong {
+  display: block;
+}
+
+.page-hint {
+  flex: 1 1 16rem;
+  color: var(--color-shell-500);
+  line-height: 1.4;
+}
+
+/* ------------------------------ dialog ---------------------------------- */
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  /*
+   * `safe center` + scroll: at 200% zoom or on a short landscape phone the
+   * dialog can be taller than the viewport. Plain `center` would push its title
+   * off-screen while the first focusable control stays focused (2.4.11).
+   */
+  align-items: safe center;
+  justify-content: safe center;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+  background: rgb(15 23 42 / 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.dialog {
+  width: 100%;
+  max-width: 24rem;
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  border-radius: 0.875rem;
+  background: #fff;
+  padding: 1.375rem;
+  border: 1px solid var(--color-shell-200);
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.16),
+    0 20px 45px rgb(15 23 42 / 0.28);
+}
+
+.dialog__title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-shell-900);
+}
+
+.dialog__body {
+  margin: 0 0 1.125rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-shell-600);
+}
+
+.dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.button {
+  appearance: none;
+  border-radius: 0.375rem;
+  border: 1px solid var(--color-shell-300);
+  background: #fff;
+  color: var(--color-shell-800);
+  padding: 0.4375rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--color-shell-100);
+}
+
+.button--danger {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #fff;
+}
+
+.button--danger:hover {
+  background: #991b1b;
+}
+
+/* ---------------------------- error screen ------------------------------ */
+
+.app-error {
+  max-width: 32rem;
+  max-height: calc(100dvh - 2rem);
+  overflow: auto;
+  margin: 4rem auto;
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  background: #fff;
+  border: 1px solid var(--color-shell-300);
+  box-shadow: 0 10px 30px rgb(15 23 42 / 0.1);
+}
+
+.app-error h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.125rem;
+}
+
+.app-error p {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+  color: var(--color-shell-600);
+  line-height: 1.5;
+}
+
+.app-error__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Skip link: the header holds four focusable controls before the editor.
+   Hidden by translation rather than with `.sr-only`, because `not-sr-only`
+   resets `position` to `static` and this has to sit above the header. */
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
+  background: #fff;
+  color: var(--color-shell-900);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 2px 8px rgb(15 23 42 / 0.3);
+  transform: translateY(calc(-100% - 0.75rem));
+  transition: transform 120ms ease;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* -------------------------- responsive layout ---------------------------
+   Tablet: editor above preview. Mobile: one pane at a time (tabs).
+   Always scoped to `screen` so the print stylesheet never inherits a
+   responsive rule (print viewports are A4-wide, which is < 1024px).
+   ------------------------------------------------------------------------ */
+
+@media screen and (max-width: 1023.98px) {
+  .workspace__panes {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(180px, 40vh) minmax(0, 1fr);
+  }
+
+  .workspace__pane--editor {
+    border-right: 0;
+    border-bottom: 1px solid var(--color-shell-300);
+  }
+
+  .app-header__tagline {
+    display: none;
+  }
+}
+
+@media screen and (max-width: 767.98px) {
+  /* Below the tab breakpoint the page itself scrolls, so a large text size
+     cannot squeeze a pane to zero height. */
+  body {
+    overflow: auto;
+  }
+
+  .app-shell {
+    height: auto;
+  }
+
+  .workspace__panes {
+    grid-template-rows: minmax(0, 1fr);
+    min-height: calc(100dvh - 9rem);
+  }
+
+  .workspace__tabs {
+    display: grid;
+  }
+
+  .workspace__pane {
+    grid-area: 1 / 1;
+  }
+
+  .workspace__pane[data-hidden="true"] {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .app-header {
+    padding: 0.5rem 0.625rem;
+  }
+
+  .app-header__wordmark {
+    font-size: 1rem;
+  }
+
+  .save-status {
+    display: none;
+  }
+
+  /* "Not saved" is the only signal that the resume is not being persisted, so
+     it must never be the state that gets hidden — that covers both a failed
+     write and autosave being switched off. */
+  .save-status[data-tone="error"],
+  .save-status[data-tone="warn"] {
+    display: block;
+    flex-basis: 100%;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .save-status[data-tone="error"] {
+    color: #fecaca;
+  }
+
+  .save-status[data-tone="warn"] {
+    color: #fde68a;
+  }
+
+  .preview-stage {
+    padding: 0.75rem;
+  }
+
+  .preview-footer {
+    padding: 0.5rem;
+  }
+}
+
+/* ============================== PRINT ====================================
+   Only the resume reaches the paper: everything else is hidden, shadows are
+   dropped, and the sheet becomes the printable text area (the page margins now
+   come from the `@page` rule below, mirroring the on-screen sheet padding).
+   ========================================================================= */
+
+@page {
+  size: A4 portrait;
+  margin: 12mm 15mm;
+}
+
+@media print {
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .no-print,
+  .no-print * {
+    display: none !important;
+  }
+
+  .app-shell,
+  .app-main,
+  .workspace,
+  .workspace__panes,
+  .workspace__pane {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    visibility: visible !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  /*
+   * `.workspace__pane--editor` carries `no-print` but is also matched by the
+   * un-scoping `display: block` reset above, which wins on source order at
+   * equal specificity. Its children are still hidden, so nothing visible
+   * leaks today — but an out-of-flow child or a `::before` would, and
+   * `display: none` is the only rule that cannot be argued with. Exclude it
+   * from the reset and hide it outright.
+   */
+  .workspace__pane--editor {
+    display: none !important;
+  }
+
+  /* Belt and braces: the editor subtree does not depend on its ancestor. */
+  .pane-bar--editor,
+  .editor-host,
+  .editor-skeleton {
+    display: none !important;
+  }
+
+  /*
+   * The skip link is `position: fixed`, and Chromium prints a fixed element on
+   * *every* page of the output — it would repeat "Skip to the Markdown editor"
+   * at the foot of all eight pages of a multi-page resume. Off-screen is not
+   * hidden: a translated fixed box is still laid out, and still printed.
+   */
+  .skip-link {
+    display: none !important;
+  }
+
+  /*
+   * Belt and braces #2: nothing inside the printed document may carry a zoom.
+   * `.preview-sheet` sets its own, so this is insurance against a future
+   * descendant reintroducing one and silently scaling the paper output.
+   */
+  .resume-document,
+  .resume-document * {
+    zoom: 1 !important;
+  }
+
+  .preview-pane {
+    background: #fff !important;
+  }
+
+  .preview-stage {
+    display: block !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: none !important;
+  }
+
+  .preview-sheet {
+    width: auto !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    zoom: 1 !important;
+    background: #fff none !important;
+    box-shadow: none !important;
+  }
+}
